@@ -16,7 +16,7 @@ name = "ssz"
 [dev-dependencies]
 ethereum_ssz_derive = { version = "0.5.3", path = "../ssz_derive" }
 ethereum-types = { version = "0.14.1" }
-ssz_types = { git = "https://github.com/unionlabs/ssz_types" }
+ssz_types = { git = "https://github.com/unionlabs/ssz_types", branch = "try-from-instead-of-from" }
 
 [dependencies]
 ethereum-types = { version = "0.14.1", default-features = false }
