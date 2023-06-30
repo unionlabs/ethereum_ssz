@@ -30,33 +30,34 @@
 //! ```rust
 //! use ssz::{Encode, Decode};
 //! use ssz_derive::{Encode, Decode};
+//! use ssz_types::{typenum::U4, VariableList};
 //!
 //! /// Represented as an SSZ "list" wrapped in an SSZ "container".
 //! #[derive(Debug, PartialEq, Encode, Decode)]
 //! #[ssz(struct_behaviour = "container")]   // "container" is the default behaviour
 //! struct TypicalStruct {
-//!     foo: Vec<u8>
+//!     foo: VariableList<u8, U4>
 //! }
 //!
 //! assert_eq!(
-//!     TypicalStruct { foo: vec![42] }.as_ssz_bytes(),
+//!     TypicalStruct { foo: vec![42].try_into().unwrap() }.as_ssz_bytes(),
 //!     vec![4, 0, 0, 0, 42]
 //! );
 //!
 //! assert_eq!(
 //!     TypicalStruct::from_ssz_bytes(&[4, 0, 0, 0, 42]).unwrap(),
-//!     TypicalStruct { foo: vec![42] },
+//!     TypicalStruct { foo: vec![42].try_into().unwrap() },
 //! );
 //!
 //! /// Represented as an SSZ "list" *without* an SSZ "container".
 //! #[derive(Encode, Decode)]
 //! #[ssz(struct_behaviour = "transparent")]
 //! struct WrapperStruct {
-//!     foo: Vec<u8>
+//!     foo: VariableList<u8, U4>
 //! }
 //!
 //! assert_eq!(
-//!     WrapperStruct { foo: vec![42] }.as_ssz_bytes(),
+//!     WrapperStruct { foo: vec![42].try_into().unwrap() }.as_ssz_bytes(),
 //!     vec![42]
 //! );
 //!
@@ -64,42 +65,42 @@
 //! #[derive(Debug, PartialEq, Encode, Decode)]
 //! #[ssz(struct_behaviour = "transparent")]
 //! struct WrapperStructSkippedField {
-//!     foo: Vec<u8>,
+//!     foo: VariableList<u8, U4>,
 //!     #[ssz(skip_serializing, skip_deserializing)]
 //!     bar: u8,
 //! }
 //!
 //! assert_eq!(
-//!     WrapperStructSkippedField { foo: vec![42], bar: 99 }.as_ssz_bytes(),
+//!     WrapperStructSkippedField { foo: vec![42].try_into().unwrap(), bar: 99 }.as_ssz_bytes(),
 //!     vec![42]
 //! );
 //! assert_eq!(
 //!     WrapperStructSkippedField::from_ssz_bytes(&[42]).unwrap(),
-//!     WrapperStructSkippedField { foo: vec![42], bar: 0 }
+//!     WrapperStructSkippedField { foo: vec![42].try_into().unwrap(), bar: 0 }
 //! );
 //!
 //! /// Represented as an SSZ "list" *without* an SSZ "container".
 //! #[derive(Encode, Decode)]
 //! #[ssz(struct_behaviour = "transparent")]
-//! struct NewType(Vec<u8>);
+//! struct NewType(VariableList<u8, U4>);
 //!
 //! assert_eq!(
-//!     NewType(vec![42]).as_ssz_bytes(),
+//!     NewType(vec![42].try_into().unwrap()).as_ssz_bytes(),
 //!     vec![42]
 //! );
 //!
 //! /// Represented as an SSZ "list" *without* an SSZ "container". The `bar` byte is ignored.
 //! #[derive(Debug, PartialEq, Encode, Decode)]
 //! #[ssz(struct_behaviour = "transparent")]
-//! struct NewTypeSkippedField(Vec<u8>, #[ssz(skip_serializing, skip_deserializing)] u8);
+//! struct NewTypeSkippedField(VariableList<u8, U4>, #[ssz(skip_serializing, skip_deserializing)] u8);
 //!
 //! assert_eq!(
-//!     NewTypeSkippedField(vec![42], 99).as_ssz_bytes(),
+//!     NewTypeSkippedField(vec![42].try_into().unwrap(), 99).as_ssz_bytes(),
 //!     vec![42]
 //! );
 //! assert_eq!(
 //!     NewTypeSkippedField::from_ssz_bytes(&[42]).unwrap(),
-//!     NewTypeSkippedField(vec![42], 0)
+//!     NewTypeSkippedField(vec![42].try_into().unwrap(), 0)
 //! );
 //! ```
 //!
@@ -108,13 +109,14 @@
 //! ```rust
 //! use ssz::{Encode, Decode};
 //! use ssz_derive::{Encode, Decode};
+//! use ssz_types::{typenum::U4, VariableList};
 //!
 //! /// Represented as an SSZ "union".
 //! #[derive(Debug, PartialEq, Encode, Decode)]
 //! #[ssz(enum_behaviour = "union")]
 //! enum UnionEnum {
 //!     Foo(u8),
-//!     Bar(Vec<u8>),
+//!     Bar(VariableList<u8, U4>),
 //! }
 //!
 //! assert_eq!(
@@ -123,7 +125,7 @@
 //! );
 //! assert_eq!(
 //!     UnionEnum::from_ssz_bytes(&[1, 42, 42]).unwrap(),
-//!     UnionEnum::Bar(vec![42, 42]),
+//!     UnionEnum::Bar(vec![42, 42].try_into().unwrap()),
 //! );
 //!
 //! /// Represented as only the value in the enum variant.
@@ -131,7 +133,7 @@
 //! #[ssz(enum_behaviour = "transparent")]
 //! enum TransparentEnum {
 //!     Foo(u8),
-//!     Bar(Vec<u8>),
+//!     Bar(VariableList<u8, U4>),
 //! }
 //!
 //! assert_eq!(
@@ -139,7 +141,7 @@
 //!     vec![42]
 //! );
 //! assert_eq!(
-//!     TransparentEnum::Bar(vec![42, 42]).as_ssz_bytes(),
+//!     TransparentEnum::Bar(vec![42, 42].try_into().unwrap()).as_ssz_bytes(),
 //!     vec![42, 42]
 //! );
 //!

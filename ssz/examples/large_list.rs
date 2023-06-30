@@ -3,13 +3,14 @@
 //! Useful for `cargo flamegraph`.
 
 use ssz::{Decode, Encode};
+use ssz_types::{typenum::U8192, VariableList};
 
 fn main() {
-    let vec: Vec<u64> = vec![4242; 8196];
+    let vec: VariableList<u64, U8192> = vec![4242; 8192].try_into().unwrap();
 
-    let output: Vec<Vec<u64>> = (0..40_000)
-        .map(|_| Vec::from_ssz_bytes(&vec.as_ssz_bytes()).unwrap())
-        .collect();
+    let output = (0..40_000)
+        .map(|_| <_>::from_ssz_bytes(&vec.as_ssz_bytes()).unwrap())
+        .collect::<Vec<VariableList<u64, U8192>>>();
 
     println!("{}", output.len());
 }

@@ -271,17 +271,18 @@ impl<'a> SszDecoderBuilder<'a> {
 /// ```rust
 /// use ssz_derive::{Encode, Decode};
 /// use ssz::{Decode, Encode, SszDecoder, SszDecoderBuilder};
+/// use ssz_types::{typenum::U8, VariableList};
 ///
 /// #[derive(PartialEq, Debug, Encode, Decode)]
 /// struct Foo {
 ///     a: u64,
-///     b: Vec<u16>,
+///     b: VariableList<u16, U8>,
 /// }
 ///
 /// fn ssz_decoding_example() {
 ///     let foo = Foo {
 ///         a: 42,
-///         b: vec![1, 3, 3, 7]
+///         b: vec![1, 3, 3, 7].try_into().unwrap()
 ///     };
 ///
 ///     let bytes = foo.as_ssz_bytes();
@@ -289,7 +290,7 @@ impl<'a> SszDecoderBuilder<'a> {
 ///     let mut builder = SszDecoderBuilder::new(&bytes);
 ///
 ///     builder.register_type::<u64>().unwrap();
-///     builder.register_type::<Vec<u16>>().unwrap();
+///     builder.register_type::<VariableList<u16, U8>>().unwrap();
 ///
 ///     let mut decoder = builder.build().unwrap();
 ///

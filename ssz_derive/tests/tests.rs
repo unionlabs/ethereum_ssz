@@ -1,5 +1,7 @@
 use ssz::{Decode, Encode};
 use ssz_derive::{Decode, Encode};
+use ssz_types::typenum::U5;
+use ssz_types::VariableList;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
@@ -47,12 +49,12 @@ fn two_fixed_union() {
 #[derive(PartialEq, Debug, Encode, Decode)]
 struct VariableA {
     a: u8,
-    b: Vec<u8>,
+    b: VariableList<u8, U5>,
 }
 
 #[derive(PartialEq, Debug, Encode, Decode)]
 struct VariableB {
-    a: Vec<u8>,
+    a: VariableList<u8, U5>,
     b: u8,
 }
 
@@ -84,10 +86,10 @@ struct TwoVariableUnionStruct {
 fn two_variable_trans() {
     let trans_a = TwoVariableTrans::A(VariableA {
         a: 1,
-        b: vec![2, 3],
+        b: vec![2, 3].try_into().unwrap(),
     });
     let trans_b = TwoVariableTrans::B(VariableB {
-        a: vec![1, 2],
+        a: vec![1, 2].try_into().unwrap(),
         b: 3,
     });
 
@@ -108,10 +110,10 @@ fn two_variable_trans() {
 fn two_variable_union() {
     let union_a = TwoVariableUnion::A(VariableA {
         a: 1,
-        b: vec![2, 3],
+        b: vec![2, 3].try_into().unwrap(),
     });
     let union_b = TwoVariableUnion::B(VariableB {
-        a: vec![1, 2],
+        a: vec![1, 2].try_into().unwrap(),
         b: 3,
     });
 
@@ -137,44 +139,63 @@ fn tag_enum() {
 
 #[derive(PartialEq, Debug, Encode, Decode)]
 #[ssz(enum_behaviour = "union")]
-enum TwoVecUnion {
-    A(Vec<u8>),
-    B(Vec<u8>),
+enum TwoVariableListUnion {
+    A(VariableList<u8, U5>),
+    B(VariableList<u8, U5>),
 }
 
 #[test]
 fn two_vec_union() {
-    assert_encode_decode(&TwoVecUnion::A(vec![]), &[0]);
-    assert_encode_decode(&TwoVecUnion::B(vec![]), &[1]);
+    assert_encode_decode(&TwoVariableListUnion::A(vec![].try_into().unwrap()), &[0]);
+    assert_encode_decode(&TwoVariableListUnion::B(vec![].try_into().unwrap()), &[1]);
 
-    assert_encode_decode(&TwoVecUnion::A(vec![0]), &[0, 0]);
-    assert_encode_decode(&TwoVecUnion::B(vec![0]), &[1, 0]);
+    assert_encode_decode(
+        &TwoVariableListUnion::A(vec![0].try_into().unwrap()),
+        &[0, 0],
+    );
+    assert_encode_decode(
+        &TwoVariableListUnion::B(vec![0].try_into().unwrap()),
+        &[1, 0],
+    );
 
-    assert_encode_decode(&TwoVecUnion::A(vec![0, 1]), &[0, 0, 1]);
-    assert_encode_decode(&TwoVecUnion::B(vec![0, 1]), &[1, 0, 1]);
+    assert_encode_decode(
+        &TwoVariableListUnion::A(vec![0, 1].try_into().unwrap()),
+        &[0, 0, 1],
+    );
+    assert_encode_decode(
+        &TwoVariableListUnion::B(vec![0, 1].try_into().unwrap()),
+        &[1, 0, 1],
+    );
 }
 
 #[derive(PartialEq, Debug, Encode, Decode)]
 #[ssz(struct_behaviour = "transparent")]
 struct TransparentStruct {
-    inner: Vec<u8>,
+    inner: VariableList<u8, U5>,
 }
 
 impl TransparentStruct {
     fn new(inner: u8) -> Self {
-        Self { inner: vec![inner] }
+        Self {
+            inner: vec![inner].try_into().unwrap(),
+        }
     }
 }
 
 #[test]
 fn transparent_struct() {
-    assert_encode_decode(&TransparentStruct::new(42), &vec![42_u8].as_ssz_bytes());
+    assert_encode_decode(
+        &TransparentStruct::new(42),
+        &VariableList::<u8, U5>::try_from(vec![42_u8])
+            .unwrap()
+            .as_ssz_bytes(),
+    );
 }
 
 #[derive(PartialEq, Debug, Encode, Decode)]
 #[ssz(struct_behaviour = "transparent")]
 struct TransparentStructSkippedField {
-    inner: Vec<u8>,
+    inner: VariableList<u8, U5>,
     #[ssz(skip_serializing, skip_deserializing)]
     skipped: PhantomData<u64>,
 }
@@ -182,7 +203,7 @@ struct TransparentStructSkippedField {
 impl TransparentStructSkippedField {
     fn new(inner: u8) -> Self {
         Self {
-            inner: vec![inner],
+            inner: vec![inner].try_into().unwrap(),
             skipped: PhantomData,
         }
     }
@@ -192,31 +213,35 @@ impl TransparentStructSkippedField {
 fn transparent_struct_skipped_field() {
     assert_encode_decode(
         &TransparentStructSkippedField::new(42),
-        &vec![42_u8].as_ssz_bytes(),
+        &VariableList::<u8, U5>::try_from(vec![42_u8])
+            .unwrap()
+            .as_ssz_bytes(),
     );
 }
 
 #[derive(PartialEq, Debug, Encode, Decode)]
 #[ssz(struct_behaviour = "transparent")]
-struct TransparentStructNewType(Vec<u8>);
+struct TransparentStructNewType(VariableList<u8, U5>);
 
 #[test]
 fn transparent_struct_newtype() {
     assert_encode_decode(
-        &TransparentStructNewType(vec![42_u8]),
-        &vec![42_u8].as_ssz_bytes(),
+        &TransparentStructNewType(vec![42_u8].try_into().unwrap()),
+        &VariableList::<u8, U5>::try_from(vec![42_u8])
+            .unwrap()
+            .as_ssz_bytes(),
     );
 }
 
 #[derive(PartialEq, Debug, Encode, Decode)]
 #[ssz(struct_behaviour = "transparent")]
 struct TransparentStructNewTypeSkippedField(
-    Vec<u8>,
+    VariableList<u8, U5>,
     #[ssz(skip_serializing, skip_deserializing)] PhantomData<u64>,
 );
 
 impl TransparentStructNewTypeSkippedField {
-    fn new(inner: Vec<u8>) -> Self {
+    fn new(inner: VariableList<u8, U5>) -> Self {
         Self(inner, PhantomData)
     }
 }
@@ -224,8 +249,10 @@ impl TransparentStructNewTypeSkippedField {
 #[test]
 fn transparent_struct_newtype_skipped_field() {
     assert_encode_decode(
-        &TransparentStructNewTypeSkippedField::new(vec![42_u8]),
-        &vec![42_u8].as_ssz_bytes(),
+        &TransparentStructNewTypeSkippedField::new(vec![42_u8].try_into().unwrap()),
+        &VariableList::<u8, U5>::try_from(vec![42_u8])
+            .unwrap()
+            .as_ssz_bytes(),
     );
 }
 
@@ -233,11 +260,11 @@ fn transparent_struct_newtype_skipped_field() {
 #[ssz(struct_behaviour = "transparent")]
 struct TransparentStructNewTypeSkippedFieldReverse(
     #[ssz(skip_serializing, skip_deserializing)] PhantomData<u64>,
-    Vec<u8>,
+    VariableList<u8, U5>,
 );
 
 impl TransparentStructNewTypeSkippedFieldReverse {
-    fn new(inner: Vec<u8>) -> Self {
+    fn new(inner: VariableList<u8, U5>) -> Self {
         Self(PhantomData, inner)
     }
 }
@@ -245,7 +272,9 @@ impl TransparentStructNewTypeSkippedFieldReverse {
 #[test]
 fn transparent_struct_newtype_skipped_field_reverse() {
     assert_encode_decode(
-        &TransparentStructNewTypeSkippedFieldReverse::new(vec![42_u8]),
-        &vec![42_u8].as_ssz_bytes(),
+        &TransparentStructNewTypeSkippedFieldReverse::new(vec![42_u8].try_into().unwrap()),
+        &VariableList::<u8, U5>::try_from(vec![42_u8])
+            .unwrap()
+            .as_ssz_bytes(),
     );
 }

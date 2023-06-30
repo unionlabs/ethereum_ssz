@@ -15,9 +15,11 @@ name = "ssz"
 
 [dev-dependencies]
 ethereum_ssz_derive = { version = "0.5.3", path = "../ssz_derive" }
+ethereum-types = { version = "0.14.1" }
+ssz_types = { git = "https://github.com/unionlabs/ssz_types" }
 
 [dependencies]
-ethereum-types = "0.14.1"
+ethereum-types = { version = "0.14.1", default-features = false }
 smallvec = { version = "1.6.1", features = ["const_generics"] }
 itertools = "0.10.3"
 

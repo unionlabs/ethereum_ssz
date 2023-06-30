@@ -1,6 +1,6 @@
 use super::*;
 
-mod impls;
+pub mod impls;
 
 /// Provides SSZ encoding (serialization) via the `as_ssz_bytes(&self)` method.
 ///
@@ -57,21 +57,22 @@ pub trait Encode {
 /// ```rust
 /// use ssz_derive::{Encode, Decode};
 /// use ssz::{Decode, Encode, SszEncoder};
+/// use ssz_types::{typenum::U8, VariableList};
 ///
 /// #[derive(PartialEq, Debug, Encode, Decode)]
 /// struct Foo {
 ///     a: u64,
-///     b: Vec<u16>,
+///     b: VariableList<u16, U8>,
 /// }
 ///
 /// fn ssz_encode_example() {
 ///     let foo = Foo {
 ///         a: 42,
-///         b: vec![1, 3, 3, 7]
+///         b: vec![1, 3, 3, 7].try_into().unwrap()
 ///     };
 ///
 ///     let mut buf: Vec<u8> = vec![];
-///     let offset = <u64 as Encode>::ssz_fixed_len() + <Vec<u16> as Encode>::ssz_fixed_len();
+///     let offset = <u64 as Encode>::ssz_fixed_len() + <VariableList<u16, U8> as Encode>::ssz_fixed_len();
 ///
 ///     let mut encoder = SszEncoder::container(&mut buf, offset);
 ///

@@ -10,17 +10,18 @@
 //! ```rust
 //! use ssz_derive::{Encode, Decode};
 //! use ssz::{Decode, Encode};
+//! use ssz_types::{typenum::U8, VariableList};
 //!
 //! #[derive(PartialEq, Debug, Encode, Decode)]
 //! struct Foo {
 //!     a: u64,
-//!     b: Vec<u16>,
+//!     b: VariableList<u16, U8>,
 //! }
 //!
 //! fn ssz_encode_decode_example() {
 //!     let foo = Foo {
 //!         a: 42,
-//!         b: vec![1, 3, 3, 7]
+//!         b: vec![1, 3, 3, 7].try_into().unwrap()
 //!     };
 //!
 //!     let ssz_bytes: Vec<u8> = foo.as_ssz_bytes();
@@ -43,11 +44,16 @@ pub use decode::{
     impls::decode_list_of_variable_length_items, read_offset, split_union_bytes,
     try_from_iter::TryFromIter, Decode, DecodeError, SszDecoder, SszDecoderBuilder,
 };
-pub use encode::{encode_length, Encode, SszEncoder};
+pub use encode::{
+    encode_length,
+    impls::{sequence_ssz_append, sequence_ssz_bytes_len},
+    Encode, SszEncoder,
+};
 pub use union_selector::UnionSelector;
 
 /// The number of bytes used to represent an offset.
 pub const BYTES_PER_LENGTH_OFFSET: usize = 4;
+// REVIEW: Why not just use usize?
 /// The maximum value that can be represented using `BYTES_PER_LENGTH_OFFSET`.
 #[cfg(target_pointer_width = "32")]
 pub const MAX_LENGTH_VALUE: usize = (std::u32::MAX >> (8 * (4 - BYTES_PER_LENGTH_OFFSET))) as usize;

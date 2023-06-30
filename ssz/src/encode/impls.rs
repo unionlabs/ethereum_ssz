@@ -1,23 +1,21 @@
 use super::*;
 use core::num::NonZeroUsize;
 use ethereum_types::{H160, H256, U128, U256};
-use smallvec::SmallVec;
-use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 macro_rules! impl_encodable_for_uint {
-    ($type: ident, $bit_size: expr) => {
+    ($type: ident) => {
         impl Encode for $type {
             fn is_ssz_fixed_len() -> bool {
                 true
             }
 
             fn ssz_fixed_len() -> usize {
-                $bit_size / 8
+                ($type::BITS / 8) as usize
             }
 
             fn ssz_bytes_len(&self) -> usize {
-                $bit_size / 8
+                ($type::BITS / 8) as usize
             }
 
             fn ssz_append(&self, buf: &mut Vec<u8>) {
@@ -27,16 +25,11 @@ macro_rules! impl_encodable_for_uint {
     };
 }
 
-impl_encodable_for_uint!(u8, 8);
-impl_encodable_for_uint!(u16, 16);
-impl_encodable_for_uint!(u32, 32);
-impl_encodable_for_uint!(u64, 64);
-
-#[cfg(target_pointer_width = "32")]
-impl_encodable_for_uint!(usize, 32);
-
-#[cfg(target_pointer_width = "64")]
-impl_encodable_for_uint!(usize, 64);
+impl_encodable_for_uint!(u8);
+impl_encodable_for_uint!(u16);
+impl_encodable_for_uint!(u32);
+impl_encodable_for_uint!(u64);
+impl_encodable_for_uint!(usize);
 
 // Based on the `tuple_impls` macro from the standard library.
 macro_rules! impl_encode_for_tuples {
@@ -236,12 +229,12 @@ impl<T: Encode> Encode for Arc<T> {
         T::is_ssz_fixed_len()
     }
 
-    fn ssz_fixed_len() -> usize {
-        T::ssz_fixed_len()
-    }
-
     fn ssz_append(&self, buf: &mut Vec<u8>) {
         self.as_ref().ssz_append(buf)
+    }
+
+    fn ssz_fixed_len() -> usize {
+        T::ssz_fixed_len()
     }
 
     fn ssz_bytes_len(&self) -> usize {
@@ -271,26 +264,29 @@ impl<'a, T: Encode> Encode for &'a T {
 /// Compute the encoded length of a vector-like sequence of `T`.
 pub fn sequence_ssz_bytes_len<I, T>(iter: I) -> usize
 where
-    I: Iterator<Item = T> + ExactSizeIterator,
+    I: IntoIterator<Item = T>,
+    <I as IntoIterator>::IntoIter: Iterator + ExactSizeIterator,
     T: Encode,
 {
+    let iter = iter.into_iter();
     // Compute length before doing any iteration.
     let length = iter.len();
-    if <T as Encode>::is_ssz_fixed_len() {
-        <T as Encode>::ssz_fixed_len() * length
+    if T::is_ssz_fixed_len() {
+        T::ssz_fixed_len() * length
     } else {
-        let mut len = iter.map(|item| item.ssz_bytes_len()).sum();
-        len += BYTES_PER_LENGTH_OFFSET * length;
-        len
+        iter.map(|item| item.ssz_bytes_len()).sum::<usize>() + (BYTES_PER_LENGTH_OFFSET * length)
     }
 }
 
 /// Encode a vector-like sequence of `T`.
 pub fn sequence_ssz_append<I, T>(iter: I, buf: &mut Vec<u8>)
 where
-    I: Iterator<Item = T> + ExactSizeIterator,
+    I: IntoIterator<Item = T>,
+    <I as IntoIterator>::IntoIter: Iterator + ExactSizeIterator,
     T: Encode,
 {
+    let iter = iter.into_iter();
+
     if T::is_ssz_fixed_len() {
         buf.reserve(T::ssz_fixed_len() * iter.len());
 
@@ -308,67 +304,25 @@ where
     }
 }
 
-macro_rules! impl_for_vec {
-    ($type: ty) => {
-        impl<T: Encode> Encode for $type {
-            fn is_ssz_fixed_len() -> bool {
-                false
-            }
+impl<T: Encode, const N: usize> Encode for [T; N] {
+    fn is_ssz_fixed_len() -> bool {
+        T::is_ssz_fixed_len()
+    }
 
-            fn ssz_bytes_len(&self) -> usize {
-                sequence_ssz_bytes_len(self.iter())
-            }
+    fn ssz_append(&self, buf: &mut Vec<u8>) {
+        sequence_ssz_append(self.iter(), buf)
+    }
 
-            fn ssz_append(&self, buf: &mut Vec<u8>) {
-                sequence_ssz_append(self.iter(), buf)
-            }
+    fn ssz_fixed_len() -> usize {
+        if Self::is_ssz_fixed_len() {
+            T::ssz_fixed_len() * N
+        } else {
+            BYTES_PER_LENGTH_OFFSET
         }
-    };
-}
-
-impl_for_vec!(Vec<T>);
-impl_for_vec!(SmallVec<[T; 1]>);
-impl_for_vec!(SmallVec<[T; 2]>);
-impl_for_vec!(SmallVec<[T; 3]>);
-impl_for_vec!(SmallVec<[T; 4]>);
-impl_for_vec!(SmallVec<[T; 5]>);
-impl_for_vec!(SmallVec<[T; 6]>);
-impl_for_vec!(SmallVec<[T; 7]>);
-impl_for_vec!(SmallVec<[T; 8]>);
-impl_for_vec!(SmallVec<[T; 96]>);
-
-impl<K, V> Encode for BTreeMap<K, V>
-where
-    K: Encode + Ord,
-    V: Encode,
-{
-    fn is_ssz_fixed_len() -> bool {
-        false
     }
 
     fn ssz_bytes_len(&self) -> usize {
         sequence_ssz_bytes_len(self.iter())
-    }
-
-    fn ssz_append(&self, buf: &mut Vec<u8>) {
-        sequence_ssz_append(self.iter(), buf)
-    }
-}
-
-impl<T> Encode for BTreeSet<T>
-where
-    T: Encode + Ord,
-{
-    fn is_ssz_fixed_len() -> bool {
-        false
-    }
-
-    fn ssz_bytes_len(&self) -> usize {
-        sequence_ssz_bytes_len(self.iter())
-    }
-
-    fn ssz_append(&self, buf: &mut Vec<u8>) {
-        sequence_ssz_append(self.iter(), buf)
     }
 }
 
@@ -488,65 +442,36 @@ impl Encode for U128 {
     }
 }
 
-macro_rules! impl_encodable_for_u8_array {
-    ($len: expr) => {
-        impl Encode for [u8; $len] {
-            fn is_ssz_fixed_len() -> bool {
-                true
-            }
+// REVIEW: make const generic?
+// macro_rules! impl_encodable_for_u8_array {
+//     ($len: expr) => {
+//         impl Encode for [u8; $len] {
+//             fn is_ssz_fixed_len() -> bool {
+//                 true
+//             }
 
-            fn ssz_fixed_len() -> usize {
-                $len
-            }
+//             fn ssz_fixed_len() -> usize {
+//                 $len
+//             }
 
-            fn ssz_bytes_len(&self) -> usize {
-                $len
-            }
+//             fn ssz_bytes_len(&self) -> usize {
+//                 $len
+//             }
 
-            fn ssz_append(&self, buf: &mut Vec<u8>) {
-                buf.extend_from_slice(&self[..]);
-            }
-        }
-    };
-}
+//             fn ssz_append(&self, buf: &mut Vec<u8>) {
+//                 buf.extend_from_slice(&self[..]);
+//             }
+//         }
+//     };
+// }
 
-impl_encodable_for_u8_array!(4);
-impl_encodable_for_u8_array!(32);
-impl_encodable_for_u8_array!(48);
+// impl_encodable_for_u8_array!(4);
+// impl_encodable_for_u8_array!(32);
+// impl_encodable_for_u8_array!(48);
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn vec_of_u8() {
-        let vec: Vec<u8> = vec![];
-        assert_eq!(vec.as_ssz_bytes(), vec![]);
-
-        let vec: Vec<u8> = vec![1];
-        assert_eq!(vec.as_ssz_bytes(), vec![1]);
-
-        let vec: Vec<u8> = vec![0, 1, 2, 3];
-        assert_eq!(vec.as_ssz_bytes(), vec![0, 1, 2, 3]);
-    }
-
-    #[test]
-    fn vec_of_vec_of_u8() {
-        let vec: Vec<Vec<u8>> = vec![];
-        assert_eq!(vec.as_ssz_bytes(), vec![]);
-
-        let vec: Vec<Vec<u8>> = vec![vec![]];
-        assert_eq!(vec.as_ssz_bytes(), vec![4, 0, 0, 0]);
-
-        let vec: Vec<Vec<u8>> = vec![vec![], vec![]];
-        assert_eq!(vec.as_ssz_bytes(), vec![8, 0, 0, 0, 8, 0, 0, 0]);
-
-        let vec: Vec<Vec<u8>> = vec![vec![0, 1, 2], vec![11, 22, 33]];
-        assert_eq!(
-            vec.as_ssz_bytes(),
-            vec![8, 0, 0, 0, 11, 0, 0, 0, 0, 1, 2, 11, 22, 33]
-        );
-    }
 
     #[test]
     fn ssz_encode_u8() {
@@ -620,9 +545,9 @@ mod tests {
 
     #[test]
     fn ssz_encode_u8_array_4() {
-        assert_eq!([0, 0, 0, 0].as_ssz_bytes(), vec![0; 4]);
-        assert_eq!([1, 0, 0, 0].as_ssz_bytes(), vec![1, 0, 0, 0]);
-        assert_eq!([1, 2, 3, 4].as_ssz_bytes(), vec![1, 2, 3, 4]);
+        assert_eq!([0_u8, 0, 0, 0].as_ssz_bytes(), vec![0; 4]);
+        assert_eq!([1_u8, 0, 0, 0].as_ssz_bytes(), vec![1, 0, 0, 0]);
+        assert_eq!([1_u8, 2, 3, 4].as_ssz_bytes(), vec![1, 2, 3, 4]);
     }
 
     #[test]

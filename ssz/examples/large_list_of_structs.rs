@@ -4,6 +4,7 @@
 
 use ssz::{Decode, Encode};
 use ssz_derive::{Decode, Encode};
+use ssz_types::{typenum::U8192, VariableList};
 
 #[derive(Clone, Copy, Encode, Decode)]
 pub struct FixedLen {
@@ -21,11 +22,11 @@ fn main() {
         d: 42,
     };
 
-    let vec: Vec<FixedLen> = vec![fixed_len; 8196];
+    let vec: VariableList<FixedLen, U8192> = vec![fixed_len; 8192].try_into().unwrap();
 
-    let output: Vec<Vec<u64>> = (0..40_000)
-        .map(|_| Vec::from_ssz_bytes(&vec.as_ssz_bytes()).unwrap())
-        .collect();
+    let output = (0..40_000)
+        .map(|_| VariableList::from_ssz_bytes(&vec.as_ssz_bytes()).unwrap())
+        .collect::<Vec<VariableList<FixedLen, U8192>>>();
 
     println!("{}", output.len());
 }
