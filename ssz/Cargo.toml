@@ -22,6 +22,7 @@ ssz_types = { git = "https://github.com/unionlabs/ssz_types", branch = "try-from
 ethereum-types = { version = "0.14.1", default-features = false }
 smallvec = { version = "1.6.1", features = ["const_generics"] }
 itertools = "0.10.3"
+ssz_derive = { package = "ethereum_ssz_derive", path = "../ssz_derive" }
 
 [features]
 arbitrary = ["ethereum-types/arbitrary"]

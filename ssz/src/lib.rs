@@ -51,6 +51,9 @@ pub use encode::{
 };
 pub use union_selector::UnionSelector;
 
+extern crate ssz_derive;
+pub use ssz_derive::*;
+
 /// The number of bytes used to represent an offset.
 pub const BYTES_PER_LENGTH_OFFSET: usize = 4;
 // REVIEW: Why not just use usize?
