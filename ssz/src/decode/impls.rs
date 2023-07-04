@@ -3,6 +3,7 @@ use crate::decode::try_from_iter::{TryCollect, TryFromIter};
 use core::num::NonZeroUsize;
 use ethereum_types::{H160, H256, U128, U256};
 use itertools::process_results;
+use std::fmt::Debug;
 use std::iter;
 use std::sync::Arc;
 
@@ -352,37 +353,61 @@ impl Decode for U128 {
     }
 }
 
-macro_rules! impl_decodable_for_u8_array {
-    ($len: expr) => {
-        impl Decode for [u8; $len] {
-            fn is_ssz_fixed_len() -> bool {
-                true
-            }
+// Copied directly from ssz_types::FixedVector
+impl<T: Decode + Debug, const N: usize> Decode for [T; N] {
+    fn is_ssz_fixed_len() -> bool {
+        T::is_ssz_fixed_len()
+    }
 
-            fn ssz_fixed_len() -> usize {
-                $len
-            }
-
-            fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
-                let len = bytes.len();
-                let expected = <Self as Decode>::ssz_fixed_len();
-
-                if len != expected {
-                    Err(DecodeError::InvalidByteLength { len, expected })
-                } else {
-                    let mut array: [u8; $len] = [0; $len];
-                    array.copy_from_slice(bytes);
-
-                    Ok(array)
-                }
-            }
+    fn ssz_fixed_len() -> usize {
+        if Self::is_ssz_fixed_len() {
+            T::ssz_fixed_len() * N
+        } else {
+            BYTES_PER_LENGTH_OFFSET
         }
-    };
-}
+    }
 
-impl_decodable_for_u8_array!(4);
-impl_decodable_for_u8_array!(32);
-impl_decodable_for_u8_array!(48);
+    fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
+        if bytes.is_empty() {
+            Err(DecodeError::InvalidByteLength {
+                len: 0,
+                expected: 1,
+            })
+        } else if T::is_ssz_fixed_len() {
+            let num_items = bytes
+                .len()
+                .checked_div(T::ssz_fixed_len())
+                .ok_or(DecodeError::ZeroLengthItem)?;
+
+            if num_items != N {
+                // REVIEW: This doesnt feel like the right error to use here
+                return Err(DecodeError::BytesInvalid(format!(
+                    "FixedVector of {} items has {} items",
+                    num_items, N
+                )));
+            }
+
+            // REVIEW: Potential for DOS? the length is checked above, so it should be fine?
+            bytes
+                .chunks(T::ssz_fixed_len())
+                .map(|chunk| T::from_ssz_bytes(chunk))
+                .collect::<Result<Vec<T>, _>>()
+                .and_then(|vec| {
+                    vec.try_into().map_err(|e: Vec<T>| {
+                        DecodeError::BytesInvalid(format!(
+                            "Wrong number of FixedVector elements, expected {N} but found {}: {e:?}",
+                            e.len()
+                        ))
+                    })
+                })
+        } else {
+            let vec: Vec<T> = decode_list_of_variable_length_items(bytes, Some(N))?;
+            vec.try_into().map_err(|e| {
+                DecodeError::BytesInvalid(format!("Wrong number of FixedVector elements: {:?}", e))
+            })
+        }
+    }
+}
 
 /// Decodes `bytes` as if it were a list of variable-length items.
 ///
